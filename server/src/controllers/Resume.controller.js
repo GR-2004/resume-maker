@@ -1,6 +1,7 @@
 import { Resume } from "../models/Resume.model.js";
 import { User } from "../models/User.model.js";
 import { uploadOnCloudinary } from "../utils/Cloudinary.util.js";
+import { supabase } from "../utils/supabase.js";
 
 export const getResume = async (req, res) => {
   try {
@@ -89,3 +90,16 @@ export const saveResume = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const test = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+  .from('resume')
+  .select('*');
+  console.log("data", data);
+  console.log("error", error);
+  return res.status(200).json(data);
+  } catch (error) {
+    return res.status(500).json(error);
+  }
+}
