@@ -3,7 +3,7 @@ import PortfolioPage from "./PortfolioPage";
 import Modal from "../component/Modal";
 import axios from "axios";
 import toast, { Toaster } from "react-hot-toast";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Header from "../component/Header";
 import InputCard from "../component/InputCard";
 import TextareaCard from "../component/TextareaCard";
@@ -25,6 +25,7 @@ const FormDataPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -94,6 +95,10 @@ const FormDataPage = () => {
       projects: updatedProjects,
     }));
   };
+
+  const handleResumeClick = async () => {
+    navigate(`/resume/${dataObject.id}`)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -284,6 +289,14 @@ const FormDataPage = () => {
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg w-full mt-4"
             >
               JSON
+            </button>
+            
+            {/* Resume Button */}
+            <button
+              onClick={handleResumeClick}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg w-full mt-4"
+            >
+              Resume
             </button>
 
             {/* Modal */}
