@@ -33,8 +33,12 @@ export const getResumeFromId = async (req, res) => {
       return res.status(404).json({ message: "id not found" });
     }
     // const resume = await Resume.findById(id);
-    const {data:resumeData, error:resumeError} =await supabase.from("resume").select("*").eq("id", id).single();
-    if(resumeError){
+    const { data: resumeData, error: resumeError } = await supabase
+      .from("resume")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (resumeError) {
       return res.status(500).jsno(resumeError);
     }
     return res.status(200).json(resumeData);
@@ -44,7 +48,6 @@ export const getResumeFromId = async (req, res) => {
       .json({ message: "something went wrong while fetching resume details" });
   }
 };
-
 
 export const saveResume = async (req, res) => {
   try {
@@ -73,8 +76,33 @@ export const saveResume = async (req, res) => {
 
     const image = await uploadOnCloudinary(imageUrl);
 
+    if (req.user.resumeId) {
+      const { data, error } = await supabase
+        .from("resume")
+        .update({
+          name: name,
+          email: email,
+          phone: phone,
+          experience: experience,
+          github: github,
+          linkedin: linkedin,
+          skills: skills,
+          projects: parsedProjects,
+          image: image,
+        })
+        .select("*")
+        .eq("id", req.user.resumeId)
+        .single();
+
+      if (error) {
+        return res.status(500).json(error);
+      }
+
+      return res.status(200).json(data);
+    }
+
     // Insert the resume into the Supabase table
-    const {data:savedResume, error:savedError} = await supabase
+    const { data: savedResume, error: savedError } = await supabase
       .from("resume") // Your table name
       .insert([
         {
@@ -93,13 +121,18 @@ export const saveResume = async (req, res) => {
       .select("*")
       .single();
 
-    if(savedError){
+    if (savedError) {
       return res.status(500).json(savedError);
     }
 
-    const {data:userData, error:userError} = await supabase.from("user").update({resumeId: savedResume.id}).eq("id", req.user.id).select("*").single();
-    if(userError){
-      return res.status(500).json(userError)
+    const { data: userData, error: userError } = await supabase
+      .from("user")
+      .update({ resumeId: savedResume.id })
+      .eq("id", req.user.id)
+      .select("*")
+      .single();
+    if (userError) {
+      return res.status(500).json(userError);
     }
 
     return res.status(200).json(savedResume);
