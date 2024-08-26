@@ -10,7 +10,7 @@ import TextareaCard from "../component/TextareaCard";
 
 const FormDataPage = () => {
   const [dataObject, setDataObject] = useState({
-    _id: "",
+    id: "",
     name: "",
     email: "",
     college: "",
@@ -35,29 +35,8 @@ const FormDataPage = () => {
   };
 
   useEffect(() => {
-    if (id) {
-      fetchDataFromId(id);
-    } else {
-      fetchData();
-    }
+    fetchData();
   }, [id]);
-
-  const fetchDataFromId = async (id) => {
-    try {
-      const resume = await axios.get(
-        `http://localhost:3000/api/resume/getResumeFromId?id=${id}`,
-        { withCredentials: true }
-      );
-      if (!resume || !resume.data) {
-        toast.error("Resume not found");
-        return;
-      }
-      setDataObject(resume.data);
-      toast.success("User fetched successfully");
-    } catch (error) {
-      toast.error(error?.message || "Something went wrong");
-    }
-  };
 
   const fetchData = async () => {
     try {
@@ -65,7 +44,6 @@ const FormDataPage = () => {
         "http://localhost:3000/api/resume/getResume",
         { withCredentials: true }
       );
-      console.log(resume);
       if (!resume || !resume.data) {
         toast.error("Resume not found");
         return;
@@ -80,7 +58,7 @@ const FormDataPage = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setImagePreview(URL.createObjectURL(file))
+      setImagePreview(URL.createObjectURL(file));
       setDataObject((prev) => ({ ...prev, image: file }));
     }
   };
@@ -299,29 +277,29 @@ const FormDataPage = () => {
               >
                 Generate Resume
               </button>
-              {/* JSON Button */}
-              <button
-                onClick={openModal}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg w-full mt-4"
-              >
-                JSON
-              </button>
-
-              {/* Modal */}
-              <Modal isOpen={isModalOpen} onClose={closeModal}>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <pre className="text-sm">
-                    {JSON.stringify(dataObject, null, 2)}
-                  </pre>
-                  <button
-                    onClick={closeModal}
-                    className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Close
-                  </button>
-                </div>
-              </Modal>
             </form>
+            {/* JSON Button */}
+            <button
+              onClick={openModal}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-lg w-full mt-4"
+            >
+              JSON
+            </button>
+
+            {/* Modal */}
+            <Modal isOpen={isModalOpen} onClose={closeModal}>
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <pre className="text-sm overflow-x-auto whitespace-pre-wrap">
+                  {JSON.stringify(dataObject, null, 2)}
+                </pre>
+                <button
+                  onClick={closeModal}
+                  className="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg"
+                >
+                  Close
+                </button>
+              </div>
+            </Modal>
           </div>
         </div>
 

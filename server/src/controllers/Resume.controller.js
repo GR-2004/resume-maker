@@ -1,5 +1,3 @@
-import { Resume } from "../models/Resume.model.js";
-import { User } from "../models/User.model.js";
 import { uploadOnCloudinary } from "../utils/Cloudinary.util.js";
 import { supabase } from "../utils/supabase.js";
 
@@ -8,8 +6,16 @@ export const getResume = async (req, res) => {
     if (!req?.user?.resumeId) {
       return res.status(404).json({ message: "resumeId not found" });
     }
-    const resume = await Resume.findById(req.user.resumeId);
-    return res.status(200).json(resume);
+    const { data, error } = await supabase
+      .from("resume")
+      .select("*")
+      .eq("id", req.user.resumeId)
+      .single();
+    if (error) {
+      return res.status(500).json(error);
+    }
+    console.log(data);
+    return res.status(200).json(data);
   } catch (error) {
     return res
       .status(500)
@@ -26,14 +32,19 @@ export const getResumeFromId = async (req, res) => {
     if (!id) {
       return res.status(404).json({ message: "id not found" });
     }
-    const resume = await Resume.findById(id);
-    return res.status(200).json(resume);
+    // const resume = await Resume.findById(id);
+    const {data:resumeData, error:resumeError} =await supabase.from("resume").select("*").eq("id", id).single();
+    if(resumeError){
+      return res.status(500).jsno(resumeError);
+    }
+    return res.status(200).json(resumeData);
   } catch (error) {
     return res
       .status(500)
       .json({ message: "something went wrong while fetching resume details" });
   }
 };
+
 
 export const saveResume = async (req, res) => {
   try {
@@ -61,31 +72,37 @@ export const saveResume = async (req, res) => {
     const imageUrl = req.file ? req.file.path : null;
 
     const image = await uploadOnCloudinary(imageUrl);
-    console.log("image: ", image)
 
-    const resume = new Resume({
-      name,
-      college,
-      email,
-      phone,
-      experience,
-      github,
-      linkedin,
-      skills,
-      projects: parsedProjects,
-      image: image,
-    });
+    // Insert the resume into the Supabase table
+    const {data:savedResume, error:savedError} = await supabase
+      .from("resume") // Your table name
+      .insert([
+        {
+          name,
+          college,
+          email,
+          phone,
+          experience,
+          github,
+          linkedin,
+          skills,
+          projects: parsedProjects,
+          image,
+        },
+      ])
+      .select("*")
+      .single();
 
-    const savedResume = await resume.save();
-    console.log("savedResume", savedResume);
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if(savedError){
+      return res.status(500).json(savedError);
     }
-    user.resumeId = savedResume._id;
-    await user.save();
 
-    res.status(200).json(savedResume);
+    const {data:userData, error:userError} = await supabase.from("user").update({resumeId: savedResume.id}).eq("id", req.user.id).select("*").single();
+    if(userError){
+      return res.status(500).json(userError)
+    }
+
+    return res.status(200).json(savedResume);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -93,13 +110,11 @@ export const saveResume = async (req, res) => {
 
 export const test = async (req, res) => {
   try {
-    const { data, error } = await supabase
-  .from('resume')
-  .select('*');
-  console.log("data", data);
-  console.log("error", error);
-  return res.status(200).json(data);
+    const { data, error } = await supabase.from("resume").select("*");
+    console.log("data", data);
+    console.log("error", error);
+    return res.status(200).json(data);
   } catch (error) {
     return res.status(500).json(error);
   }
-}
+};

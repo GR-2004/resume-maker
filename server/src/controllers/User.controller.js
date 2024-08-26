@@ -1,15 +1,54 @@
 import jwt from "jsonwebtoken";
 import { ApiError } from "../utils/ApiError.util.js";
-import { User } from "../models/User.model.js";
+import { supabase } from "../utils/supabase.js";
+import bcrypt from "bcryptjs";
+
+const generateAccessToken = (id, email) => {
+  return jwt.sign(
+    {
+      id: id,
+      email: email,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+    }
+  );
+};
+
+const generateRefreshToken = (id) => {
+  return jwt.sign(
+    {
+      id: id,
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    }
+  );
+};
 
 const generateAccessAndRefreshTokens = async (userId) => {
   try {
-    const user = await User.findById(userId);
-    const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateRefreshToken();
+    const user = await supabase
+      .from("user")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (user.error) {
+      return res.status(500).json(user.error);
+    }
+    const accessToken = generateAccessToken(userId, user.data.email);
+    const refreshToken = generateRefreshToken(userId);
 
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
+    const { data, error } = await supabase
+      .from("user")
+      .update({ refreshToken: refreshToken })
+      .eq("id", userId);
+
+    if (error && !data) {
+      return res.status(500).json("Error while creating Refresh Token");
+    }
 
     return { accessToken, refreshToken };
   } catch (error) {
@@ -21,104 +60,117 @@ export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
     if ([name, email, password].some((field) => field?.trim() === "")) {
-      throw new ApiError(404, "all fields are required");
+      return res.status(404).json("All fields are required");
     }
 
-    const existedUser = await User.findOne({
-      $or: [{ name }, { email }],
-    });
+    // Check if user already exists by name or email
+    const { data: existedUser, error: existedUserError } = await supabase
+      .from("user")
+      .select("*")
+      .or(`name.eq.${name},email.eq.${email}`)
+      .single();
+
+    if (existedUserError && existedUserError.code !== "PGRST116") {
+      // Handle any error other than "no rows found"
+      return res.status(500).json("Error checking existing user");
+    }
 
     if (existedUser) {
-      throw new ApiError(409, "user and email already exits");
+      return res.status(409).json("User and email already exist");
     }
 
-    const user = await User.create({
-      name,
-      email,
-      password,
-    });
+    // Create new user
+    const { data: newUser, error: createUserError } = await supabase
+      .from("user")
+      .insert([{ name, email, password }])
+      .select("*")
+      .single();
 
-    const createdUser = await User.findById(user._id).select(
-      "-password -refreshToken"
-    );
-
-    if (!createdUser) {
-      throw new ApiError(
-        500,
-        "Something went wrong while registering the user"
-      );
+    if (createUserError) {
+      return res.status(500).json(createUserError);
     }
-
-    return res.status(201).json(createdUser);
+    return res.status(201).json(newUser);
   } catch (error) {
-    return res.status(500).json(error);
+    return res.status(500).json({ message: error.message });
   }
 };
 
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
-      throw new ApiError(404, "email and password is required");
-    }
-    const user = await User.findOne({
-      email,
-    });
-    if (!user) {
-      throw new ApiError(404, "User not found");
+      return res.status(401).json("Email and password are required");
     }
 
-    const isPasswordValid = await user.isPasswordCorrect(password);
-    if (!isPasswordValid) {
-      throw new ApiError(401, "password incorrect");
+    
+    const { data: user, error } = await supabase
+      .from("user")
+      .select("*")
+      .eq("email", email)
+      .single(); 
+
+    
+    if (error || !user) {
+      return res.status(404).json("User not found");
     }
 
+    
+    if (password !== user.password) {
+      return res.status(401).json("Password incorrect");
+    }
+
+    // Generate access and refresh tokens
     const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
-      user._id
+      user.id
     );
 
-    const loggedInUser = await User.findById(user._id).select(
-      "-password -refreshToken"
-    );
+    // Remove sensitive information before sending the user object in response
+    const { password: _, refreshToken: __, ...loggedInUser } = user;
+
+    // Define cookie options
     const options = {
       httpOnly: true,
-      secure: false, // Set to true in production (for HTTPS)
-      sameSite: "lax", // or 'strict' or 'none'
-      // path: '/',
+      secure: false,
+      sameSite: "lax", 
     };
 
-    res
+    // Set the cookies and send the response
+    return res
       .cookie("accessToken", accessToken, options)
       .cookie("refreshToken", refreshToken, options)
       .json({ message: "Logged in successfully", user: loggedInUser });
   } catch (error) {
-    return res.status(500).json(error);
+    return res.status(500).json({ message: error.message });
   }
 };
 
 export const logoutUser = async (req, res) => {
-  await User.findByIdAndUpdate(
-    req.user._id,
-    {
-      $unset: {
-        refreshToken: 1,
-      },
-    },
-    {
-      new: true,
+  try {
+    // Update the user in the database, setting refreshToken to null
+    const { error } = await supabase
+      .from("user")
+      .update({ refreshToken: null })
+      .eq("id", req.user.id);
+
+    if (error) {
+      throw new Error("Failed to log out user");
     }
-  );
 
-  const options = {
-    httpOnly: true,
-    secure: true,
-  };
+    const options = {
+      httpOnly: true,
+      secure: true, 
+    };
 
-  return res
-    .status(200)
-    .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json({ message: "user logged out" });
+    // Clear the JWT cookies and send the response
+    return res
+      .status(200)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      .json({ message: "User logged out" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
 export const getUser = async (req, res) => {
