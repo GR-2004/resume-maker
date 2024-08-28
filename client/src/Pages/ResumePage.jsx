@@ -56,7 +56,6 @@ const ResumePage = () => {
         `http://localhost:3000/api/resume/getResumeFromId?id=${id}`,
         { withCredentials: true }
       );
-      console.log(resume.data);
       if (!resume || !resume.data) {
         toast.error("Resume not found");
         return;

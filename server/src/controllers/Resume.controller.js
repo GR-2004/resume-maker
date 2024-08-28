@@ -14,7 +14,6 @@ export const getResume = async (req, res) => {
     if (error) {
       return res.status(500).json(error);
     }
-    console.log(data);
     return res.status(200).json(data);
   } catch (error) {
     return res
@@ -144,8 +143,6 @@ export const saveResume = async (req, res) => {
 export const test = async (req, res) => {
   try {
     const { data, error } = await supabase.from("resume").select("*");
-    console.log("data", data);
-    console.log("error", error);
     return res.status(200).json(data);
   } catch (error) {
     return res.status(500).json(error);
